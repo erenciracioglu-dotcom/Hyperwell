@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="A calm falling-block puzzle in four dimensions: fill whole 3D layers of a tesseract-shaped well, turning pieces a quarter turn at a time in six planes.">
+<meta property="og:title" content="Hyperwell">
+<meta property="og:description" content="A calm falling-block puzzle in four dimensions: fill whole 3D layers of a tesseract-shaped well, turning pieces a quarter turn at a time in six planes.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://erenciracioglu-dotcom.github.io/Hyperwell/">
+<meta name="theme-color" content="#04050b">
+<!-- visit counter: cookie-free, no personal data (goatcounter.com) -->
+<script data-goatcounter="https://hyperwell.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cg fill='none' stroke='%23f2d49b' stroke-width='2'%3E%3Cpath d='M4 3v26h24V3'/%3E%3Cpath d='M11 10v12h10V10'/%3E%3Cpath d='M4 29l7-7M28 29l-7-7'/%3E%3C/g%3E%3Crect x='13' y='17' width='6' height='5' fill='%23c47bff'/%3E%3C/svg%3E">
+<title>Hyperwell</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jura:wght@300;400;600&family=Major+Mono+Display&display=swap">
+<style>
+  :root{
+    color-scheme:dark;
+    --void:#04050b; --ink:#e7eaf3; --dim:#8a91aa; --line:rgba(231,234,243,.15);
+    --glass:rgba(9,11,22,.8); --gold:#f2d49b; --ana:#52b6ff; --kata:#ff5470;
+  }
+  html,body{height:100%;margin:0;background:var(--void);color:var(--ink);overflow:hidden}
+  body{font-family:"Jura",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:14px;display:flex;flex-direction:column;-webkit-font-smoothing:antialiased;user-select:none;-webkit-user-select:none}
+  #stage{position:relative;flex:1 1 auto;min-height:0}
+  #gl,#hud{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #gl{touch-action:none;cursor:grab}
+  #gl:active{cursor:grabbing}
+  #hud{pointer-events:none}
+  .divider{position:absolute;background:var(--line);pointer-events:none}
+  .pane-label{position:absolute;display:flex;flex-direction:column;gap:3px;pointer-events:none;max-width:calc(50% - 32px)}
+  .pane-label b{font-family:"Major Mono Display",ui-monospace,monospace;font-weight:400;font-size:15px;letter-spacing:.02em;color:var(--ink)}
+  .pane-label span{font-size:12px;color:var(--dim);letter-spacing:.04em}
+  .pane-label .stat{color:var(--gold)}
+
+  #panel{flex:0 0 auto;border-top:1px solid var(--line);background:var(--glass);padding-inline:16px;padding-block:10px calc(10px + env(safe-area-inset-bottom,0px));
+    display:flex;flex-direction:column;gap:8px}
+  .prow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 26px}
+  .group{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  .glabel{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-right:4px}
+  .chip{appearance:none;font:inherit;font-size:12.5px;letter-spacing:.05em;color:var(--dim);background:transparent;border:1px solid var(--line);
+    border-radius:2px;padding:6px 10px;cursor:pointer;transition:color .2s,border-color .2s,background .2s}
+  .chip:hover,.chip:focus-visible{color:var(--ink);border-color:rgba(231,234,243,.45);outline:none}
+  .chip[aria-pressed="true"]{color:var(--ink);border-color:var(--gold);background:rgba(242,212,155,.08)}
+  .chip.tog::before{content:"";display:inline-block;width:7px;height:7px;margin-right:7px;border:1px solid currentColor;border-radius:1px;vertical-align:1px;opacity:.75}
+  .chip.tog[aria-pressed="true"]::before{background:var(--gold);border-color:var(--gold);opacity:1}
+  .chip.act{color:var(--void);background:var(--gold);border-color:var(--gold);font-weight:600}
+  .chip.act:hover,.chip.act:focus-visible{background:#fff;border-color:#fff;color:var(--void)}
+  .chip.sq{min-width:34px;padding:6px 8px;text-align:center}
+  .rot{display:inline-flex;align-items:stretch;border:1px solid var(--line);border-radius:2px}
+  .rot .chip{border:0;border-radius:0;padding:6px 8px}
+  .rot .pl{font-size:12px;color:var(--ink);letter-spacing:.04em;padding:6px 4px;display:flex;align-items:center;gap:5px;white-space:nowrap}
+  .rot .pl kbd{font-family:"Major Mono Display",ui-monospace,monospace;font-size:10.5px;color:var(--dim)}
+  .ana{color:var(--ana)} .kata{color:var(--kata)}
+  .hint{margin:0;font-size:12px;color:var(--dim);line-height:1.6;flex:1 1 300px}
+  .hint kbd{font-family:"Major Mono Display",ui-monospace,monospace;font-size:11px;color:var(--ink);border:1px solid var(--line);border-radius:2px;padding:0 4px}
+  #hidePanel{margin-left:auto}
+  #showPanel{position:absolute;right:12px;bottom:12px;display:none;background:var(--glass)}
+  body.collapsed #panel{display:none}
+  body.collapsed #showPanel{display:inline-block}
+  #toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);font-size:14px;color:var(--ink);max-width:calc(100% - 32px);text-align:center;
+    background:var(--glass);border:1px solid var(--line);padding:7px 14px;border-radius:2px;opacity:0;transition:opacity .5s;pointer-events:none}
+  #err{position:absolute;left:16px;top:16px;color:var(--kata)}
+  [hidden]{display:none!important}
+  .credits{font-size:11.5px;color:var(--dim);letter-spacing:.03em;gap:6px 12px}
+  .credits a,.about-card a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--line)}
+  .credits a:hover,.credits a:focus-visible,.about-card a:hover,.about-card a:focus-visible{border-color:var(--gold);outline:none}
+  .linkish{appearance:none;background:none;border:0;border-bottom:1px solid rgba(242,212,155,.35);padding:0;font:inherit;color:var(--gold);cursor:pointer}
+  .linkish:hover,.linkish:focus-visible{border-color:var(--gold);outline:none}
+  #about{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding-inline:16px;padding-block:24px;
+    background:rgba(4,5,11,.66);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+  .about-card{width:100%;max-width:460px;background:#0b0d19;border:1px solid var(--line);border-radius:3px;padding:22px 24px 20px;display:flex;flex-direction:column;gap:12px}
+  .about-card h2{margin:0;font-family:"Major Mono Display",ui-monospace,monospace;font-weight:400;font-size:22px}
+  .about-card p{margin:0;font-size:14px;line-height:1.6;color:var(--ink)}
+  .about-card .who{font-size:13px;color:var(--dim)}
+  .about-card .chip{align-self:flex-start}
+  @media (max-width:700px){ .hint{display:none} .prow{gap:8px 16px} #panel{max-height:46vh;overflow-y:auto} }
+  @media (prefers-reduced-motion:reduce){ .chip{transition:none} }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="gl"></canvas>
+  <canvas id="hud"></canvas>
+  <div class="divider" id="divider"></div>
+  <div class="pane-label" id="labO"><b>hyperwell</b><span>outer shell is <span class="ana">ana</span> · inner shell is <span class="kata">kata</span></span><span class="stat" id="stat"></span></div>
+  <div class="pane-label" id="labI"><b>slices</b><span>one 3D well for each step along ana–kata</span></div>
+  <div id="toast"></div>
+  <button class="chip" type="button" id="showPanel">Controls</button>
+</div>
+
+<div id="panel">
+  <div class="prow">
+    <div class="group" id="moves">
+      <span class="glabel">Move</span>
+      <button class="chip sq" type="button" data-move="R-" title="A or left arrow" aria-label="Move left">←</button>
+      <button class="chip sq" type="button" data-move="R+" title="D or right arrow" aria-label="Move right">→</button>
+      <button class="chip sq" type="button" data-move="F+" title="W or up arrow" aria-label="Move away">↑</button>
+      <button class="chip sq" type="button" data-move="F-" title="S or down arrow" aria-label="Move closer">↓</button>
+      <button class="chip" type="button" data-move="A-" title="Q"><span class="kata">kata</span></button>
+      <button class="chip" type="button" data-move="A+" title="E"><span class="ana">ana</span></button>
+      <button class="chip" type="button" id="step" title="X">Step down</button>
+      <button class="chip act" type="button" id="drop" title="Space">Drop</button>
+      <button class="chip" type="button" id="undo" title="Z">Undo drop</button>
+    </div>
+    <button class="chip" type="button" id="hidePanel">Hide controls</button>
+  </div>
+  <div class="prow">
+    <div class="group" id="rots"><span class="glabel">Turn piece</span></div>
+  </div>
+  <div class="prow">
+    <div class="group">
+      <span class="glabel">Turn 4D view</span>
+      <button class="chip" type="button" id="viewRA" title="V">right · <span class="ana">ana</span></button>
+      <button class="chip" type="button" id="viewFA" title="B">depth · <span class="ana">ana</span></button>
+    </div>
+    <div class="group" id="wells">
+      <span class="glabel">Well</span>
+      <button class="chip" type="button" data-n="3" aria-pressed="true">3 × 3 × 3 floor</button>
+      <button class="chip" type="button" data-n="4" aria-pressed="false">4 × 4 × 4 floor</button>
+      <button class="chip" type="button" id="fresh" title="N">Fresh well</button>
+    </div>
+  </div>
+  <div class="prow">
+    <div class="group" id="layers">
+      <span class="glabel">Show</span>
+      <button class="chip tog" type="button" data-layer="ghost" aria-pressed="true">Landing shadow</button>
+      <button class="chip tog" type="button" data-layer="meter" aria-pressed="true">Layer meter</button>
+      <button class="chip tog" type="button" data-layer="tint" aria-pressed="false">Colour by ana–kata</button>
+      <button class="chip tog" type="button" data-layer="guides" aria-pressed="false">Drop lines</button>
+      <button class="chip tog" type="button" data-layer="fall" aria-pressed="false">Slow fall</button>
+    </div>
+    <div class="group"><button class="chip" type="button" id="sound" aria-pressed="false">Sound off</button></div>
+    <p class="hint">Drag to look around · <kbd>a</kbd><kbd>d</kbd><kbd>w</kbd><kbd>s</kbd> or arrows move · <kbd>q</kbd>/<kbd>e</kbd> kata/ana · <kbd>1</kbd>–<kbd>6</kbd> turn, with <kbd>shift</kbd> the other way · <kbd>space</kbd> drop · <kbd>x</kbd> step down · <kbd>z</kbd> undo · <kbd>v</kbd>/<kbd>b</kbd> turn the 4D view</p>
+  </div>
+  <div class="prow credits">
+    <span>Made by Faruk Eren Ciracioglu with Claude Opus 5.5 · <a href="mailto:erenciracioglu@gmail.com">erenciracioglu@gmail.com</a></span>
+    <span>Also: <a href="https://erenciracioglu-dotcom.github.io/Tesseracting/" target="_blank" rel="noopener">Tesseracting</a>, a ball bouncing inside a turning tesseract</span>
+    <button class="linkish" type="button" id="aboutBtn">About</button>
+  </div>
+</div>
+
+<div id="about" hidden>
+  <div class="about-card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <h2 id="aboutTitle">hyperwell</h2>
+    <p>A falling-block puzzle with one more direction. The floor of the well is a whole cube, so a layer is full only when all of its cells are filled, across every step of ana and kata. Pieces turn in planes, a quarter turn at a time. Nothing falls until you drop it, so take your time.</p>
+    <p>The left view draws the well like a tesseract: cells further toward ana sit in the outer shell, cells toward kata in the inner one. The right view cuts the same well into ordinary 3D slices.</p>
+    <p class="who">Made by Faruk Eren Ciracioglu with Claude Opus 5.5.<br>Contact: <a href="mailto:erenciracioglu@gmail.com">erenciracioglu@gmail.com</a></p>
+    <p class="who">MIT licensed · <a href="https://github.com/erenciracioglu-dotcom/Hyperwell" target="_blank" rel="noopener">Source on GitHub</a> · Also: <a href="https://erenciracioglu-dotcom.github.io/Tesseracting/" target="_blank" rel="noopener">Tesseracting</a></p>
+    <button class="chip" type="button" id="aboutClose">Close</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+// ==LOGIC START==
+// Cells are integer points (x, y, z, w). y is up; x, z and w span the floor, which is a cube.
+const PIECES = [
+  { name:'rod',       cells:[[0,0,0],[1,0,0],[2,0,0]] },
+  { name:'corner',    cells:[[0,0,0],[1,0,0],[0,0,1]] },
+  { name:'square',    cells:[[0,0,0],[1,0,0],[0,0,1],[1,0,1]] },
+  { name:'tee',       cells:[[0,0,0],[1,0,0],[2,0,0],[1,0,1]] },
+  { name:'ell',       cells:[[0,0,0],[1,0,0],[2,0,0],[2,0,1]] },
+  { name:'skew',      cells:[[0,0,0],[1,0,0],[1,0,1],[2,0,1]] },
+  { name:'tripod',    cells:[[0,0,0],[1,0,0],[0,0,1],[0,1,0]] },
+  { name:'twist',     cells:[[0,0,0],[1,0,0],[1,0,1],[1,1,1]] },
+  { name:'long rod',  cells:[[0,0,0],[1,0,0],[2,0,0],[3,0,0]], minN:4 },
+];
+const FLOOR = [0, 2, 3];               // axis indices that span the floor
+const piecesFor = N => PIECES.map((p,i)=>i).filter(i => !PIECES[i].minN || N >= PIECES[i].minN);
+
+function makeGame(N, H, seed){
+  let s = seed >>> 0 || 1;
+  const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+  return { N, H, rnd, board:new Uint8Array(N*N*N*H), bag:[], piece:null, cleared:0, history:[] };
+}
+const idx = (g,x,y,z,w) => ((y*g.N + w)*g.N + z)*g.N + x;
+const inside = (g,c) => c[1] >= 0 && c[1] < g.H && c[0] >= 0 && c[0] < g.N && c[2] >= 0 && c[2] < g.N && c[3] >= 0 && c[3] < g.N;
+const cellAt = (g,c) => g.board[idx(g,c[0],c[1],c[2],c[3])];
+const fits = (g,cells) => cells.every(c => inside(g,c) && !cellAt(g,c));
+
+function refillBag(g){
+  const ids = piecesFor(g.N);
+  for (let i = ids.length-1; i > 0; i--){ const j = Math.floor(g.rnd()*(i+1)); [ids[i],ids[j]] = [ids[j],ids[i]]; }
+  g.bag.push(...ids);
+}
+function nextType(g){ if (!g.bag.length) refillBag(g); return g.bag[0]; }
+
+// V is the 4x4 view matrix (world -> view, signed permutation). Spawn so the piece looks the same on screen whatever the view.
+function spawnCells(g, type, V){
+  const rep = PIECES[type].cells.map(([x,y,z]) => [x,y,z,0]);
+  const cells = rep.map(v => [0,1,2,3].map(r => V[0*4+r]*v[0] + V[1*4+r]*v[1] + V[2*4+r]*v[2] + V[3*4+r]*v[3])); // V^T v
+  const out = cells.map(c => c.slice());
+  for (const a of [0,1,2,3]){
+    const lo = Math.min(...cells.map(c=>c[a])), hi = Math.max(...cells.map(c=>c[a]));
+    const shift = a === 1 ? (g.H - 1 - hi) : (Math.floor((g.N - (hi-lo+1))/2) - lo);
+    out.forEach(c => c[a] += shift);
+  }
+  return out;
+}
+function pivotIndex(cells){
+  const m = [0,1,2,3].map(a => cells.reduce((s,c)=>s+c[a],0)/cells.length);
+  let best = 0, bd = Infinity;
+  cells.forEach((c,i) => { const d = c.reduce((s,v,a)=>s+(v-m[a])**2,0); if (d < bd - 1e-9){ bd = d; best = i; } });
+  return best;
+}
+function spawn(g, V, forced){
+  const type = forced ?? (nextType(g), g.bag.shift());
+  const cells = spawnCells(g, type, V);
+  if (!fits(g, cells)) return false;
+  g.piece = { type, cells, pivot:pivotIndex(cells) };
+  return true;
+}
+function moved(cells, d){ return cells.map(c => c.map((v,i)=>v+d[i])); }
+// Quarter turn in the plane of world axes a (sign sa) and b (sign sb): +a turns into +b.
+function turnVec(r, a, sa, b, sb, ang){
+  const u = sa*r[a], v = sb*r[b], co = Math.cos(ang), si = Math.sin(ang);
+  const o = r.slice(); o[a] = sa*(u*co - v*si); o[b] = sb*(u*si + v*co); return o;
+}
+const KICKS = (() => {
+  const k = [[0,0,0,0]];
+  for (const step of [1,2]) for (const a of [0,2,3,1]) for (const s of [1,-1]){ const d=[0,0,0,0]; d[a]=s*step; k.push(d); }
+  return k;
+})();
+function tryTurn(g, a, sa, b, sb){
+  const p = g.piece, P = p.cells[p.pivot];
+  const turned = p.cells.map(c => turnVec(c.map((v,i)=>v-P[i]), a, sa, b, sb, Math.PI/2).map((v,i)=>Math.round(v)+P[i]));
+  for (const k of KICKS){ const t = moved(turned, k); if (fits(g, t)) return { cells:t, kick:k }; }
+  return null;
+}
+function landing(g, cells){
+  let c = cells;
+  for (;;){ const n = moved(c, [0,-1,0,0]); if (!fits(g, n)) return c; c = n; }
+}
+function fullLayers(g){
+  const per = g.N**3, out = [];
+  for (let y = 0; y < g.H; y++){ let n = 0; for (let i = 0; i < per; i++) if (g.board[y*per+i]) n++; if (n === per) out.push(y); }
+  return out;
+}
+function layerCounts(g){
+  const per = g.N**3, out = [];
+  for (let y = 0; y < g.H; y++){ let n = 0; for (let i = 0; i < per; i++) if (g.board[y*per+i]) n++; out.push(n); }
+  return out;
+}
+function lock(g){
+  g.history.push({ board:g.board.slice(), piece:{ type:g.piece.type, cells:(g.piece.preDrop || g.piece.cells).map(c=>c.slice()), pivot:g.piece.pivot }, bag:g.bag.slice(), cleared:g.cleared });
+  if (g.history.length > 60) g.history.shift();
+  const land = landing(g, g.piece.cells);
+  for (const c of land) g.board[idx(g,...c)] = g.piece.type + 1;
+  g.piece = null;
+  return fullLayers(g);
+}
+function removeLayers(g, ys){
+  const per = g.N**3, keep = [];
+  for (let y = 0; y < g.H; y++) if (!ys.includes(y)) keep.push(g.board.slice(y*per, (y+1)*per));
+  g.board.fill(0);
+  keep.forEach((row, y) => g.board.set(row, y*per));
+  g.cleared += ys.length;
+}
+function undo(g){
+  const h = g.history.pop(); if (!h) return false;
+  g.board = h.board; g.piece = h.piece; g.bag = h.bag; g.cleared = h.cleared; return true;
+}
+// A bottom layer with one gap shaped like a square that lies across ana-kata: the first square has to be turned to fit.
+function seedWell(g){
+  const N = g.N;
+  for (let x=0;x<N;x++) for (let z=0;z<N;z++) for (let w=0;w<N;w++){
+    const gap = z === N-1 && x <= 1 && w >= N-2;
+    if (!gap) g.board[idx(g,x,0,z,w)] = 1 + Math.floor(g.rnd()*PIECES.length);
+    if (!gap && g.rnd() < 0.18 && !(x <= 1 && z === N-1)) g.board[idx(g,x,1,z,w)] = 1 + Math.floor(g.rnd()*PIECES.length);
+  }
+}
+// ==LOGIC END==
+
+// ---------- small math ----------
+const I4 = () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+function mul4(A,B){ const o = new Array(16).fill(0); for (let r=0;r<4;r++) for (let c=0;c<4;c++){ let s=0; for (let k=0;k<4;k++) s+=A[r*4+k]*B[k*4+c]; o[r*4+c]=s; } return o; }
+function planeRot(a, sa, b, sb, ang){ // acting on view coordinates, same convention as turnVec
+  const M = I4(), co = Math.cos(ang), si = Math.sin(ang);
+  M[a*4+a] = co; M[a*4+b] = -si*sa*sb; M[b*4+a] = si*sa*sb; M[b*4+b] = co; return M;
+}
+function perspective(fovy, asp, n, f){ const t = 1/Math.tan(fovy/2), o = new Float32Array(16);
+  o[0]=t/asp; o[5]=t; o[10]=(f+n)/(n-f); o[11]=-1; o[14]=2*f*n/(n-f); return o; }
+function lookAt(e, t, u){
+  let zx=e[0]-t[0], zy=e[1]-t[1], zz=e[2]-t[2]; let l=Math.hypot(zx,zy,zz); zx/=l; zy/=l; zz/=l;
+  let xx=u[1]*zz-u[2]*zy, xy=u[2]*zx-u[0]*zz, xz=u[0]*zy-u[1]*zx; l=Math.hypot(xx,xy,xz); xx/=l; xy/=l; xz/=l;
+  const yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  return new Float32Array([xx,yx,zx,0, xy,yy,zy,0, xz,yz,zz,0, -(xx*e[0]+xy*e[1]+xz*e[2]), -(yx*e[0]+yy*e[1]+yz*e[2]), -(zx*e[0]+zy*e[1]+zz*e[2]), 1]);
+}
+function mulM(a,b){ const o=new Float32Array(16); for(let c=0;c<4;c++) for(let r=0;r<4;r++){ let s=0; for(let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; o[c*4+r]=s; } return o; }
+const hex = h => [parseInt(h.slice(1,3),16)/255, parseInt(h.slice(3,5),16)/255, parseInt(h.slice(5,7),16)/255];
+const lin = c => c.map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4);
+const mix = (a,b,t) => a.map((v,i)=>v+(b[i]-v)*t);
+const ease = t => t<=0?0:t>=1?1:t*t*(3-2*t);
+
+// ---------- palette ----------
+const PIECE_HEX = ['#45c8ff','#c6f25a','#ffb03b','#c47bff','#ff6b5e','#35e0a1','#ff5fb0','#6f7bff','#f2d49b'];
+const PIECE_COL = PIECE_HEX.map(hex);
+const ANA = hex('#52b6ff'), KATA = hex('#ff5470'), MID = hex('#c47bff'), GOLD = hex('#f2d49b');
+const wTint = t => t < 0.5 ? mix(KATA, MID, t*2) : mix(MID, ANA, (t-0.5)*2);
+
+// ---------- state ----------
+const D4 = 2.0;                         // 4D eye distance, in units of half the floor width
+let N = 3, H = 10, g;
+let V = I4();                           // world -> view
+let viewAnim = null;                    // { a, sa, b, sb, from, t0, dur }
+let pieceAnim = null;                   // { kind, ... , t0, dur }
+let dropping = false, clearing = null;  // clearing = { ys, t0 }
+const layers = { ghost:true, meter:true, tint:false, guides:false, fall:false };
+const cam = { yaw:0.62, pitch:0.42, zoom:1 };
+let fullWait = 0, fallT = 0, hinted = false;
+
+function newWell(n, seedWellToo){
+  N = n; H = n === 3 ? 10 : 12;
+  g = makeGame(N, H, (Math.random()*1e9)|0);
+  pieceAnim = null; dropping = false; clearing = null; fullWait = 0;
+  if (seedWellToo){ seedWell(g); refillBag(g); spawn(g, V, 2); }
+  else spawn(g, V);
+  updateStat();
+}
+
+// ---------- screen-relative axes ----------
+// Floor directions follow the camera: "right" and "away" snap to whichever view axis points that way on screen.
+function screenAxes(){
+  const R = [Math.cos(cam.yaw), -Math.sin(cam.yaw)], F = [-Math.sin(cam.yaw), -Math.cos(cam.yaw)];
+  const pick = v => { const cands = [[0,1,v[0]],[0,-1,-v[0]],[2,1,v[1]],[2,-1,-v[1]]]; cands.sort((p,q)=>q[2]-p[2]); return [cands[0][0], cands[0][1]]; };
+  return { R:pick(R), F:pick(F), U:[1,1], A:[3,1] };
+}
+function viewToWorld(ax){ // view axis [i, s] -> world axis [j, s'] using the settled view V
+  const [i, s] = ax;
+  for (let j = 0; j < 4; j++){ const v = V[i*4+j]; if (v) return [j, s*Math.sign(v)]; }
+}
+
+// ---------- actions ----------
+function finishPieceAnim(){ if (pieceAnim){ pieceAnim = null; if (dropping) afterDrop(); } }
+function busy(){ return !g.piece || clearing || dropping || fullWait; }
+function move(key){
+  finishPieceAnim(); if (busy()) return;
+  const [axKey, sgn] = [key[0], key[1] === '+' ? 1 : -1];
+  const [a, s] = viewToWorld(screenAxes()[axKey]);
+  const d = [0,0,0,0]; d[a] = s*sgn;
+  const t = moved(g.piece.cells, d);
+  if (fits(g, t)){ startMove(t, 0.13); blip(axKey === 'A' ? (sgn>0?880:520) : 660, 0.04); }
+  else bump();
+}
+function stepDown(){
+  finishPieceAnim(); if (busy()) return;
+  const t = moved(g.piece.cells, [0,-1,0,0]);
+  if (fits(g, t)){ startMove(t, 0.12); blip(330, 0.04); } else bump();
+}
+function startMove(to, dur){
+  pieceAnim = { kind:'move', from:g.piece.cells.map(c=>c.slice()), t0:now(), dur };
+  g.piece.cells = to;
+}
+const PLANES = [ ['R','U','right · up'], ['F','U','depth · up'], ['R','F','right · depth'], ['R','A','right · ana'], ['F','A','depth · ana'], ['U','A','up · ana'] ];
+function turn(pi, dir){
+  finishPieceAnim(); if (busy()) return;
+  const ax = screenAxes();
+  let [a, sa] = viewToWorld(ax[PLANES[pi][0]]), [b, sb] = viewToWorld(ax[PLANES[pi][1]]);
+  if (dir < 0) sb = -sb;
+  const res = tryTurn(g, a, sa, b, sb);
+  if (!res){ bump(); return; }
+  const P = g.piece.cells[g.piece.pivot];
+  pieceAnim = { kind:'turn', a, sa, b, sb, pivot:P.slice(), rel:g.piece.cells.map(c=>c.map((v,i)=>v-P[i])), kick:res.kick, t0:now(), dur:0.26 };
+  g.piece.cells = res.cells;
+  blip(dir>0?740:600, 0.07, 990);
+  if (!hinted && g.piece.type === 2){ hinted = true; }
+}
+function drop(){
+  finishPieceAnim(); if (busy()) return;
+  const land = landing(g, g.piece.cells);
+  const dist = g.piece.cells[0][1] - land[0][1];
+  dropping = true;
+  g.piece.preDrop = g.piece.cells.map(c=>c.slice());
+  pieceAnim = { kind:'move', from:g.piece.cells.map(c=>c.slice()), t0:now(), dur:0.08 + 0.025*dist, drop:true };
+  g.piece.cells = land;
+}
+function afterDrop(){
+  dropping = false;
+  const ys = lock(g);
+  thump();
+  if (ys.length){ clearing = { ys, t0:now() }; chime(ys.length); }
+  else nextPiece();
+  updateStat();
+}
+function nextPiece(){
+  if (!spawn(g, V)){ fullWait = now(); toast('The well is full. Starting a fresh one.'); }
+  updateStat();
+}
+function doUndo(){
+  if (clearing || fullWait) return;
+  pieceAnim = null; dropping = false;
+  if (undo(g)){ blip(440, 0.06, 330); toast('Last drop undone'); } else toast('Nothing to undo');
+  updateStat();
+}
+function turnView(which){
+  if (viewAnim) { V = viewAnim.to; viewAnim = null; }
+  const ax = screenAxes();
+  const [a, sa] = ax[which], [b, sb] = ax.A;
+  const R = planeRot(a, sa, b, sb, Math.PI/2).map(Math.round);
+  const to = mul4(R, V);
+  viewAnim = { a, sa, b, sb, from:V.slice(), to, t0:now(), dur:0.9 };
+  V = to;
+  blip(392, 0.25, 523);
+  toast(which === 'R' ? 'View turned in right · ana: what was ana now points right' : 'View turned in depth · ana: what was ana now points away');
+}
+function curView(t){
+  if (!viewAnim) return V;
+  const k = ease((t - viewAnim.t0)/viewAnim.dur);
+  if (k >= 1){ viewAnim = null; return V; }
+  return mul4(planeRot(viewAnim.a, viewAnim.sa, viewAnim.b, viewAnim.sb, k*Math.PI/2), viewAnim.from);
+}
+
+// ---------- piece cells as floats, this instant ----------
+function pieceNow(t){
+  if (!g.piece) return null;
+  const A = pieceAnim; if (!A) return g.piece.cells;
+  const k = ease((t - A.t0)/A.dur);
+  if (A.kind === 'move'){
+    if (A.drop){ const l = Math.min(1, (t - A.t0)/A.dur); const kk = l*l; return A.from.map((c,i)=>c.map((v,j)=>v+(g.piece.cells[i][j]-v)*kk)); }
+    return A.from.map((c,i)=>c.map((v,j)=>v+(g.piece.cells[i][j]-v)*k));
+  }
+  return A.rel.map(r => turnVec(r, A.a, A.sa, A.b, A.sb, k*Math.PI/2).map((v,i)=>v + A.pivot[i] + A.kick[i]*k));
+}
+
+// ---------- WebGL ----------
+const cv = document.getElementById('gl'), hud = document.getElementById('hud'), hx = hud.getContext('2d');
+const gl = cv.getContext('webgl2', { antialias:true, alpha:false });
+function sh(type, src){ const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; }
+function prog(vs, fs){ const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p); if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p)); return p; }
+
+const CUBE_VS = `#version 300 es
+layout(location=0) in vec3 aPos; layout(location=1) in vec3 aNor;
+layout(location=2) in vec3 iC; layout(location=3) in vec3 iS; layout(location=4) in vec4 iCol; layout(location=5) in float iSt;
+uniform mat4 uVP;
+out vec3 vL; out vec3 vN; out vec4 vCol; out float vSt; out vec3 vS;
+void main(){ vL=aPos; vN=aNor; vCol=iCol; vSt=iSt; vS=iS; gl_Position=uVP*vec4(iC+aPos*iS,1.0); }`;
+const CUBE_FS = `#version 300 es
+precision highp float;
+in vec3 vL; in vec3 vN; in vec4 vCol; in float vSt; in vec3 vS; out vec4 o;
+void main(){
+  vec3 d=(0.5-abs(vL))*vS;
+  float mn=min(d.x,min(d.y,d.z)), mx=max(d.x,max(d.y,d.z)), mid=d.x+d.y+d.z-mn-mx;
+  float ew=0.03*min(vS.x,min(vS.y,vS.z))+0.012;
+  float fw=fwidth(mid)*1.3+1e-5;
+  float e=1.0-smoothstep(ew, ew+fw, mid);
+  float lit=0.56+0.44*max(dot(normalize(vN),normalize(vec3(0.35,0.9,0.55))),0.0);
+  if (vSt<0.5){ vec3 c=mix(vCol.rgb*lit, vec3(1.0), e*0.45); o=vec4(c, min(1.0, vCol.a+e*0.3)); }
+  else if (vSt<1.5){ float a=vCol.a*(e+0.07); if (a<0.004) discard; o=vec4(vCol.rgb, a); }
+  else { o=vec4(mix(vCol.rgb*lit, vec3(1.0), 0.55+0.45*e), vCol.a); }
+}`;
+const SEG_VS = `#version 300 es
+layout(location=0) in vec2 aQ;
+layout(location=1) in vec3 iA; layout(location=2) in vec3 iB; layout(location=3) in vec4 iCol; layout(location=4) in float iW;
+uniform mat4 uVP; uniform vec2 uRes;
+out vec4 vCol; out float vSide; out float vW;
+void main(){
+  vec4 ca=uVP*vec4(iA,1.0), cb=uVP*vec4(iB,1.0);
+  vec2 sa=ca.xy/ca.w*uRes*0.5, sb=cb.xy/cb.w*uRes*0.5;
+  vec2 dv=sb-sa; float L=length(dv); vec2 dir = L>1e-4 ? dv/L : vec2(1.0,0.0);
+  vec2 n=vec2(-dir.y,dir.x);
+  vec4 c = aQ.x<0.5 ? ca : cb;
+  float w=iW+1.5;
+  c.xy += n*aQ.y*w*0.5/(uRes*0.5)*c.w;
+  gl_Position=c; vCol=iCol; vSide=aQ.y; vW=w;
+}`;
+const SEG_FS = `#version 300 es
+precision highp float;
+in vec4 vCol; in float vSide; in float vW; out vec4 o;
+void main(){ float px=(1.0-abs(vSide))*vW*0.5; o=vec4(vCol.rgb, vCol.a*clamp(px,0.0,1.0)); }`;
+
+let cubeP, segP, cubeVAO, segVAO, cubeInst, segInst;
+const MAXI = 6000, CF = 11, SF = 11;
+const cubeData = new Float32Array(MAXI*CF), segData = new Float32Array(MAXI*SF);
+function initGL(){
+  cubeP = prog(CUBE_VS, CUBE_FS); segP = prog(SEG_VS, SEG_FS);
+  // cube: 36 vertices, position + normal
+  const F = [[0,1,2,1],[0,-1,2,-1],[1,2,0,1],[1,-1,0,-1],[2,0,1,1],[2,-1,1,-1]]; // placeholder, rebuilt below
+  const v = [];
+  const faces = [ [[1,0,0],[0,1,0],[0,0,1]], [[-1,0,0],[0,0,1],[0,1,0]], [[0,1,0],[0,0,1],[1,0,0]], [[0,-1,0],[1,0,0],[0,0,1]], [[0,0,1],[1,0,0],[0,1,0]], [[0,0,-1],[0,1,0],[1,0,0]] ];
+  for (const [n,u,w] of faces){
+    const c = (a,b) => [0,1,2].map(i => n[i]*0.5 + u[i]*a*0.5 + w[i]*b*0.5);
+    for (const [a,b] of [[-1,-1],[1,-1],[1,1],[-1,-1],[1,1],[-1,1]]) v.push(...c(a,b), ...n);
+  }
+  void F;
+  cubeVAO = gl.createVertexArray(); gl.bindVertexArray(cubeVAO);
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(v), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,3,gl.FLOAT,false,24,0);
+  gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1,3,gl.FLOAT,false,24,12);
+  cubeInst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, cubeInst); gl.bufferData(gl.ARRAY_BUFFER, cubeData.byteLength, gl.DYNAMIC_DRAW);
+  [[2,3,0],[3,3,3],[4,4,6],[5,1,10]].forEach(([loc,size,off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,size,gl.FLOAT,false,CF*4,off*4); gl.vertexAttribDivisor(loc,1); });
+  segVAO = gl.createVertexArray(); gl.bindVertexArray(segVAO);
+  const qb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, qb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,-1, 1,-1, 1,1, 0,-1, 1,1, 0,1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0,2,gl.FLOAT,false,8,0);
+  segInst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, segInst); gl.bufferData(gl.ARRAY_BUFFER, segData.byteLength, gl.DYNAMIC_DRAW);
+  [[1,3,0],[2,3,3],[3,4,6],[4,1,10]].forEach(([loc,size,off]) => { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc,size,gl.FLOAT,false,SF*4,off*4); gl.vertexAttribDivisor(loc,1); });
+  gl.bindVertexArray(null);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
+  gl.enable(gl.SCISSOR_TEST);
+}
+
+// draw lists: cubes {p:[3], s:[3], c:[4], st}, segs {a:[3], b:[3], c:[4], w}
+function drawPane(px, VP, eye, cubes, segs){
+  const [x, y, w, h] = px;
+  gl.viewport(x, y, w, h); gl.scissor(x, y, w, h);
+  if (segs.length){
+    const n = Math.min(segs.length, MAXI);
+    for (let i = 0; i < n; i++){ const s = segs[i], o = i*SF; segData.set(s.a, o); segData.set(s.b, o+3); segData.set(s.c, o+6); segData[o+10] = s.w*DPR; }
+    gl.useProgram(segP); gl.uniformMatrix4fv(gl.getUniformLocation(segP,'uVP'), false, VP); gl.uniform2f(gl.getUniformLocation(segP,'uRes'), w, h);
+    gl.bindVertexArray(segVAO); gl.bindBuffer(gl.ARRAY_BUFFER, segInst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, segData, 0, n*SF);
+    gl.depthMask(false); gl.disable(gl.CULL_FACE);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, n);
+  }
+  if (cubes.length){
+    for (const c of cubes) c.d = (c.p[0]-eye[0])**2 + (c.p[1]-eye[1])**2 + (c.p[2]-eye[2])**2;
+    cubes.sort((a,b) => b.d - a.d);
+    const n = Math.min(cubes.length, MAXI);
+    for (let i = 0; i < n; i++){ const c = cubes[i], o = i*CF; cubeData.set(c.p, o); cubeData.set(c.s, o+3); cubeData.set(c.c, o+6); cubeData[o+10] = c.st; }
+    gl.useProgram(cubeP); gl.uniformMatrix4fv(gl.getUniformLocation(cubeP,'uVP'), false, VP);
+    gl.bindVertexArray(cubeVAO); gl.bindBuffer(gl.ARRAY_BUFFER, cubeInst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, cubeData, 0, n*CF);
+    gl.depthMask(false); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, 36, n);
+  }
+  gl.bindVertexArray(null);
+}
+
+// ---------- layout ----------
+let DPR = 1, W = 0, Hh = 0, panes = null;
+function layout(){
+  const st = document.getElementById('stage').getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = Math.max(1, st.width); Hh = Math.max(1, st.height);
+  for (const c of [cv, hud]){ c.width = Math.round(W*DPR); c.height = Math.round(Hh*DPR); }
+  const land = W >= Hh*0.95;
+  const div = document.getElementById('divider');
+  let tess, sl;
+  if (land){ const sw = Math.round(W*0.56); tess = [0,0,sw,Hh]; sl = [sw,0,W-sw,Hh]; Object.assign(div.style,{left:sw+'px',top:'0',width:'1px',height:Hh+'px'}); }
+  else { const sh2 = Math.round(Hh*0.58); tess = [0,0,W,sh2]; sl = [0,sh2,W,Hh-sh2]; Object.assign(div.style,{left:'0',top:sh2+'px',width:W+'px',height:'1px'}); }
+  const top = land ? 96 : 76, cols = [];
+  const cw = (sl[2] - 16) / N;
+  for (let j = 0; j < N; j++) cols.push([sl[0] + 8 + j*cw, sl[1] + top, cw, sl[3] - top - 10]);
+  panes = { tess, sl, cols, land };
+  const lo = document.getElementById('labO'), li = document.getElementById('labI');
+  lo.style.left = (tess[0]+16)+'px'; lo.style.top = (tess[1]+14)+'px'; lo.style.maxWidth = (tess[2]-32)+'px';
+  li.style.left = (sl[0]+16)+'px'; li.style.top = (sl[1]+ (land?14:10))+'px'; li.style.maxWidth = (sl[2]-32)+'px';
+}
+const toPx = r => [Math.round(r[0]*DPR), Math.round((Hh - r[1] - r[3])*DPR), Math.max(1,Math.round(r[2]*DPR)), Math.max(1,Math.round(r[3]*DPR))];
+
+function camFor(rect, rFloor, halfH, fovDeg){
+  // distance that keeps a yaw-independent bound (a cylinder around the well) inside the pane
+  const fov = fovDeg*Math.PI/180, asp = rect[2]/rect[3], ty = Math.tan(fov/2), tx = ty*asp;
+  const cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch), cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw);
+  const back = [cp*sy, sp, cp*cy], right = [cy, 0, -sy], up = [-sp*sy, cp, -sp*cy];
+  let need = 0;
+  for (let i = 0; i < 16; i++) for (const yy of [-halfH, halfH]){
+    const a = i/16*Math.PI*2, p = [rFloor*Math.cos(a), yy, rFloor*Math.sin(a)];
+    const dx = p[0]*right[0]+p[2]*right[2], dy = p[0]*up[0]+p[1]*up[1]+p[2]*up[2], db = p[0]*back[0]+p[1]*back[1]+p[2]*back[2];
+    need = Math.max(need, Math.abs(dx)/(tx*0.9) + db, Math.abs(dy)/(ty*0.9) + db);
+  }
+  const dist = need/cam.zoom;
+  const eye = back.map(v => v*dist);
+  const P = perspective(fov, asp, dist*0.05, dist*4), Vw = lookAt(eye, [0,0,0], [0,1,0]);
+  return { VP:mulM(P, Vw), eye };
+}
+
+// ---------- scene building ----------
+function toView(M, p){ // world cell coords (float) -> centered view coords
+  const c = [p[0]-(N-1)/2, p[1]-(H-1)/2, p[2]-(N-1)/2, p[3]-(N-1)/2];
+  return [0,1,2,3].map(r => M[r*4]*c[0] + M[r*4+1]*c[1] + M[r*4+2]*c[2] + M[r*4+3]*c[3]);
+}
+function toViewRaw(M, c){ return [0,1,2,3].map(r => M[r*4]*c[0] + M[r*4+1]*c[1] + M[r*4+2]*c[2] + M[r*4+3]*c[3]); }
+const kOf = vw => D4/(D4 - vw/(N/2));
+function tessPos(v){ const k = kOf(v[3]); return [[v[0]*k, v[1], v[2]*k], k]; }
+const wT = v => Math.min(1, Math.max(0, (v[3] + (N-1)/2)/Math.max(1, N-1)));
+
+function cellColor(type, v, bright){
+  const base = layers.tint ? wTint(wT(v)) : PIECE_COL[(type-1) % PIECE_COL.length];
+  return lin(bright ? base : mix(base, [0.55,0.58,0.68], 0.22).map(x=>x*0.9));
+}
+
+function buildScene(t){
+  const M = curView(t);
+  const tc = [], ts = [], slc = Array.from({length:N}, () => []), sls = Array.from({length:N}, () => []);
+  const flashing = clearing ? clearing.ys : [];
+  const flashK = clearing ? 0.5 + 0.5*Math.sin((t - clearing.t0)*28) : 0;
+  const add = (p, type, style, alpha, sAlpha, colOverride) => {
+    const v = toView(M, p);
+    const [tp, k] = tessPos(v);
+    const col = colOverride || cellColor(type, v, style === 0 && alpha > 0.8);
+    tc.push({ p:tp, s:[0.78*k, 0.84, 0.78*k], c:[...col, alpha], st:style });
+    const wv = v[3] + (N-1)/2;
+    for (let j = 0; j < N; j++){
+      const wt = 1 - Math.abs(wv - j); if (wt <= 0.02) continue;
+      slc[j].push({ p:[v[0], v[1], v[2]], s:[0.86,0.86,0.86], c:[...col, sAlpha*wt], st:style });
+    }
+    return v;
+  };
+  // settled cells
+  const per = N**3;
+  for (let y = 0; y < H; y++) for (let w = 0; w < N; w++) for (let z = 0; z < N; z++) for (let x = 0; x < N; x++){
+    const tp = g.board[y*per + (w*N + z)*N + x]; if (!tp) continue;
+    if (flashing.includes(y)) add([x,y,z,w], tp, 2, 0.5 + 0.45*flashK, 0.6 + 0.4*flashK, [1,0.93,0.8]);
+    else add([x,y,z,w], tp, 0, 0.38, 0.8);
+  }
+  // piece, landing shadow, drop lines
+  const cells = pieceNow(t);
+  if (cells){
+    const type = g.piece.type + 1;
+    if (!pieceAnim && !dropping){
+      const land = landing(g, g.piece.cells);
+      if (layers.ghost && land[0][1] !== g.piece.cells[0][1]) for (const c of land) add(c, type, 1, 0.85, 0.9, lin([0.93,0.95,1]));
+      if (layers.guides) for (let i = 0; i < cells.length; i++){
+        const a = toView(M, [cells[i][0], cells[i][1]-0.45, cells[i][2], cells[i][3]]), b = toView(M, [land[i][0], land[i][1]+0.45, land[i][2], land[i][3]]);
+        if (b[1] >= a[1]) continue;
+        const col = [...lin(GOLD), 0.55];
+        ts.push({ a:tessPos(a)[0], b:tessPos(b)[0], c:col, w:1.2 });
+        const j = Math.round(a[3] + (N-1)/2);
+        if (sls[j]) sls[j].push({ a:[a[0],a[1],a[2]], b:[b[0],b[1],b[2]], c:col, w:1.2 });
+      }
+    }
+    for (const c of cells) add(c, type, 0, 0.93, 0.96);
+  }
+  // tesseract frame: the 16 corners of the 4D well, edges between corners that differ in one axis
+  const hw = N/2, hh = H/2, corners = [];
+  for (let i = 0; i < 16; i++) corners.push([i&1?hw:-hw, i&2?hh:-hh, i&4?hw:-hw, i&8?hw:-hw]);
+  const cv4 = corners.map(c => toViewRaw(M, c));
+  for (let i = 0; i < 16; i++) for (const bit of [1,2,4,8]){ const j = i ^ bit; if (j < i) continue;
+    const a = cv4[i], b = cv4[j], wa = (a[3]+(b[3]))/2;
+    const along = Math.abs(a[3]-b[3]) > 0.5*hw;           // runs through ana-kata
+    const col = along ? [...lin(GOLD), 0.42] : [...lin(wTint(Math.min(1,Math.max(0,(wa/hw+1)/2)))), 0.6];
+    // split each edge so the curve of the projection reads (edges stay straight under this projection; split for w-varying ones)
+    const steps = along ? 1 : 1;
+    for (let s = 0; s < steps; s++) ts.push({ a:tessPos(a)[0], b:tessPos(b)[0], c:col, w: along ? 1.1 : 1.5 });
+  }
+  // faint floor squares, one per ana-kata step, in the view's own shells
+  for (let j = 0; j < N; j++){
+    const vw = j - (N-1)/2, k = kOf(vw), r = hw*k, y0 = -hh, col = [...lin(wTint(j/Math.max(1,N-1))), 0.22];
+    const q = [[-r,y0,-r],[r,y0,-r],[r,y0,r],[-r,y0,r]];
+    for (let i = 0; i < 4; i++) ts.push({ a:q[i], b:q[(i+1)%4], c:col, w:1 });
+  }
+  // slices: box frame and floor grid
+  for (let j = 0; j < N; j++){
+    const col = [...lin(wTint(j/Math.max(1,N-1))), 0.5], grid = [0.5,0.55,0.7,0.16];
+    const b = [];
+    for (let i = 0; i < 8; i++) b.push([i&1?hw:-hw, i&2?hh:-hh, i&4?hw:-hw]);
+    for (let i = 0; i < 8; i++) for (const bit of [1,2,4]){ const k2 = i ^ bit; if (k2 > i) sls[j].push({ a:b[i], b:b[k2], c:col, w:1.2 }); }
+    for (let q = 1; q < N; q++){ const u = -hw + q;
+      sls[j].push({ a:[u,-hh,-hw], b:[u,-hh,hw], c:grid, w:1 }); sls[j].push({ a:[-hw,-hh,u], b:[hw,-hh,u], c:grid, w:1 }); }
+  }
+  return { tc, ts, slc, sls, M };
+}
+
+// ---------- HUD ----------
+function drawHUD(t, scene){
+  hx.setTransform(DPR,0,0,DPR,0,0); hx.clearRect(0,0,W,Hh);
+  const { cols, tess, land } = panes;
+  // slice captions
+  const cells = g.piece ? g.piece.cells : [];
+  const inSlice = new Set(cells.map(c => Math.round(toView(V, c)[3] + (N-1)/2)));
+  hx.textBaseline = 'top'; hx.textAlign = 'center';
+  cols.forEach((r, j) => {
+    const tcol = wTint(j/Math.max(1,N-1)).map(v=>Math.round(v*255));
+    const name = j === 0 ? 'kata' : j === N-1 ? 'ana' : '';
+    hx.font = '400 13px "Major Mono Display", ui-monospace, monospace';
+    hx.fillStyle = `rgba(${tcol},${inSlice.has(j)?1:0.62})`;
+    hx.fillText('w' + j, r[0] + r[2]/2, r[1] - (land?22:20));
+    if (name){ hx.font = '400 11px "Jura", ui-sans-serif, sans-serif'; hx.fillText(name, r[0] + r[2]/2, r[1] - (land?8:7)); }
+    if (inSlice.has(j)){ hx.fillStyle = `rgba(${tcol},0.9)`; hx.fillRect(r[0] + r[2]/2 - 9, r[1] + r[3] + 2, 18, 2); }
+  });
+  // layer meter
+  if (layers.meter){
+    const counts = layerCounts(g), per = N**3;
+    const bh = Math.max(4, Math.min(14, (tess[3]*0.55)/H - 3)), gap = 3, bw = Math.min(70, tess[2]*0.12);
+    const x0 = tess[0] + 16, yb = tess[1] + tess[3] - 22;
+    hx.textAlign = 'left'; hx.textBaseline = 'alphabetic';
+    for (let y = 0; y < H; y++){
+      const yy = yb - (y+1)*(bh+gap), f = counts[y]/per;
+      hx.fillStyle = 'rgba(231,234,243,0.08)'; hx.fillRect(x0, yy, bw, bh);
+      const flash = clearing && clearing.ys.includes(y);
+      hx.fillStyle = flash ? '#fff' : f >= 0.85 ? '#f2d49b' : 'rgba(242,212,155,0.55)'; hx.fillRect(x0, yy, bw*f, bh);
+    }
+    hx.fillStyle = '#8a91aa'; hx.font = '400 11px "Jura", ui-sans-serif, sans-serif';
+    hx.fillText('LAYERS', x0, yb + 14);
+    const best = counts.reduce((m,c,i)=>c>counts[m]?i:m, 0);
+    if (counts[best]) { hx.fillStyle = '#f2d49b'; hx.fillText(`${counts[best]}/${per}`, x0 + bw + 6, yb - (best+1)*(bh+gap) + bh - 1); }
+  }
+  // screen compass for the tesseract pane
+  const ax = screenAxes();
+  void ax;
+}
+
+// ---------- frame ----------
+const now = () => performance.now()/1000;
+function frame(){
+  const t = now();
+  if (pieceAnim && t - pieceAnim.t0 >= pieceAnim.dur) finishPieceAnim();
+  if (clearing && t - clearing.t0 > 0.55){ removeLayers(g, clearing.ys); clearing = null; nextPiece(); }
+  if (fullWait && t - fullWait > 1.6){ fullWait = 0; const c = g.cleared; g = makeGame(N, H, (Math.random()*1e9)|0); g.cleared = 0; spawn(g, V); updateStat(c); }
+  if (layers.fall && g.piece && !busy() && !pieceAnim){ if (!fallT) fallT = t; if (t - fallT > 1.7){ fallT = t; const n = moved(g.piece.cells,[0,-1,0,0]); if (fits(g,n)) startMove(n, 0.2); else drop(); } } else if (!layers.fall) fallT = 0;
+
+  const scene = buildScene(t);
+  gl.disable(gl.SCISSOR_TEST); gl.clearColor(0.016,0.02,0.043,1); gl.depthMask(true); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.SCISSOR_TEST);
+  const ct = camFor(panes.tess, N/2*kOf(N/2)*1.3, H/2, 36);
+  drawPane(toPx(panes.tess), ct.VP, ct.eye, scene.tc, scene.ts);
+  panes.cols.forEach((r, j) => { const c = camFor(r, N/2*1.5, H/2, 30); drawPane(toPx(r), c.VP, c.eye, scene.slc[j], scene.sls[j]); });
+  drawHUD(t, scene);
+  requestAnimationFrame(frame);
+}
+
+// ---------- UI ----------
+function updateStat(prev){
+  const el = document.getElementById('stat');
+  const nx = g.bag.length ? PIECES[g.bag[0]].name : PIECES[nextType(g)].name;
+  el.textContent = `layers cleared ${g.cleared}` + (g.piece ? ` · now: ${PIECES[g.piece.type].name}` : '') + ` · next: ${nx}` + (prev ? ` · last well: ${prev}` : '');
+}
+let toastT = 0;
+function toast(msg){ const el = document.getElementById('toast'); el.textContent = msg; el.style.opacity = 1; clearTimeout(toastT); toastT = setTimeout(() => el.style.opacity = 0, 2600); }
+
+// sound
+let AC = null, soundOn = false;
+function tone(f, dur, f2, type='sine', vol=0.06){
+  if (!soundOn || !AC) return;
+  const o = AC.createOscillator(), gn = AC.createGain(), t = AC.currentTime;
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t+dur);
+  gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(vol, t+0.01); gn.gain.exponentialRampToValueAtTime(0.0001, t+dur+0.05);
+  o.connect(gn).connect(AC.destination); o.start(t); o.stop(t+dur+0.1);
+}
+const blip = (f, d, f2) => tone(f, d, f2, 'triangle', 0.05);
+const bump = () => tone(140, 0.08, 110, 'square', 0.025);
+const thump = () => tone(110, 0.18, 55, 'sine', 0.12);
+const chime = n => [523.25, 659.25, 783.99, 1046.5].slice(0, 2+n).forEach((f,i) => setTimeout(() => tone(f, 0.9, 0, 'sine', 0.05), i*70));
+
+function buildRotButtons(){
+  const box = document.getElementById('rots');
+  PLANES.forEach(([, , label], i) => {
+    const wrap = document.createElement('span'); wrap.className = 'rot';
+    const html = label.replace('ana', '<span class="ana">ana</span>');
+    wrap.innerHTML = `<button class="chip" type="button" aria-label="Turn ${label} one way" title="Shift+${i+1}">⟲</button><span class="pl">${html} <kbd>${i+1}</kbd></span><button class="chip" type="button" aria-label="Turn ${label} the other way" title="${i+1}">⟳</button>`;
+    wrap.children[0].onclick = () => turn(i, -1);
+    wrap.children[2].onclick = () => turn(i, 1);
+    box.appendChild(wrap);
+  });
+}
+function wireUI(){
+  buildRotButtons();
+  document.querySelectorAll('[data-move]').forEach(b => b.onclick = () => move(b.dataset.move));
+  document.getElementById('drop').onclick = drop;
+  document.getElementById('step').onclick = stepDown;
+  document.getElementById('undo').onclick = doUndo;
+  document.getElementById('viewRA').onclick = () => turnView('R');
+  document.getElementById('viewFA').onclick = () => turnView('F');
+  document.getElementById('fresh').onclick = () => { newWell(N, false); toast('Fresh well'); };
+  document.querySelectorAll('[data-n]').forEach(b => b.onclick = () => {
+    document.querySelectorAll('[data-n]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    newWell(+b.dataset.n, +b.dataset.n === 3); layout();
+  });
+  document.querySelectorAll('[data-layer]').forEach(b => b.onclick = () => { const k = b.dataset.layer; layers[k] = !layers[k]; b.setAttribute('aria-pressed', String(layers[k])); });
+  const sb = document.getElementById('sound');
+  sb.onclick = () => { soundOn = !soundOn; if (soundOn && !AC){ try { AC = new AudioContext(); } catch(e){ soundOn = false; } } if (AC && AC.state === 'suspended') AC.resume();
+    sb.setAttribute('aria-pressed', String(soundOn)); sb.textContent = soundOn ? 'Sound on' : 'Sound off'; if (soundOn) chime(1); };
+  document.getElementById('hidePanel').onclick = () => { document.body.classList.add('collapsed'); requestAnimationFrame(layout); };
+  document.getElementById('showPanel').onclick = () => { document.body.classList.remove('collapsed'); requestAnimationFrame(layout); };
+  const about = document.getElementById('about');
+  document.getElementById('aboutBtn').onclick = () => { about.hidden = false; document.getElementById('aboutClose').focus(); };
+  document.getElementById('aboutClose').onclick = () => { about.hidden = true; };
+  about.addEventListener('click', e => { if (e.target === about) about.hidden = true; });
+
+  window.addEventListener('keydown', e => {
+    if (e.target.closest && e.target.closest('input,textarea')) return;
+    if (!about.hidden){ if (e.code === 'Escape') about.hidden = true; return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const c = e.code, map = { KeyA:'R-', ArrowLeft:'R-', KeyD:'R+', ArrowRight:'R+', KeyW:'F+', ArrowUp:'F+', KeyS:'F-', ArrowDown:'F-', KeyQ:'A-', KeyE:'A+' };
+    let used = true;
+    if (map[c]) move(map[c]);
+    else if (c === 'Space') drop();
+    else if (c === 'KeyX' || c === 'PageDown') stepDown();
+    else if (c === 'KeyZ' || c === 'Backspace') doUndo();
+    else if (c === 'KeyV') turnView('R');
+    else if (c === 'KeyB') turnView('F');
+    else if (c === 'KeyN') { newWell(N, false); toast('Fresh well'); }
+    else if (/^Digit[1-6]$/.test(c)) turn(+c.slice(5) - 1, e.shiftKey ? -1 : 1);
+    else used = false;
+    if (used) e.preventDefault();
+  });
+  // orbit
+  let drag = null;
+  cv.addEventListener('pointerdown', e => { drag = { x:e.clientX, y:e.clientY }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e => { if (!drag) return; cam.yaw -= (e.clientX - drag.x)*0.008; cam.pitch = Math.min(1.35, Math.max(-0.25, cam.pitch + (e.clientY - drag.y)*0.006)); drag = { x:e.clientX, y:e.clientY }; });
+  const end = () => drag = null; cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  cv.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.min(1.9, Math.max(0.6, cam.zoom * Math.exp(-e.deltaY*0.001))); }, { passive:false });
+  window.addEventListener('resize', layout);
+}
+
+try {
+  if (!gl) throw new Error('This page needs WebGL 2, which this browser did not provide.');
+  initGL(); wireUI(); newWell(3, true); layout();
+  setTimeout(() => toast('The bottom layer has one gap. Turn the square in depth · ana (key 5) to make it fit.'), 700);
+  requestAnimationFrame(frame);
+} catch (err){
+  const d = document.createElement('div'); d.id = 'err'; d.textContent = err.message; document.getElementById('stage').appendChild(d);
+}
+</script>
+
+</body>
+</html>
